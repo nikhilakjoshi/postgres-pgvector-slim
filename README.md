@@ -7,6 +7,7 @@ This Docker Compose setup creates a PostgreSQL database with the following confi
 - **Database Name**: `askwealth`
 - **Port**: `5432`
 - **Admin User**: `postgres` (password: `postgres`)
+- **Extensions**: `pgvector` (for vector similarity search and embeddings)
 
 ## Application Users
 
@@ -56,6 +57,13 @@ docker-compose ps
 
 ```bash
 docker-compose logs postgres
+```
+
+### Test pgvector extension
+
+```bash
+# Connect to database and test vector operations
+docker-compose exec postgres psql -U askwealth_rw_dev -d askwealth -c "SELECT '[1,2,3]'::vector;"
 ```
 
 ## File Structure
