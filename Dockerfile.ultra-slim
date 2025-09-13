@@ -1,0 +1,91 @@
+# Multi-stage build for ultra-minimal image size
+# Stage 1: Build pgvector
+FROM postgres:15-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache \
+    build-base \
+    gcc \
+    musl-dev \
+    git \
+    postgresql-dev \
+    make
+
+# Clone and build pgvector
+RUN git clone --branch v0.5.1 https://github.com/pgvector/pgvector.git /tmp/pgvector && \
+    cd /tmp/pgvector && \
+    make clean && \
+    make vector.so && \
+    cp vector.so /tmp/ && \
+    cp sql/vector.sql /tmp/vector--0.5.1.sql && \
+    cp vector.control /tmp/
+
+# Stage 2: Ultra-minimal runtime image
+FROM alpine:3.18
+
+# Install only essential PostgreSQL runtime packages
+RUN apk add --no-cache \
+    postgresql15 \
+    postgresql15-contrib \
+    su-exec \
+    tzdata \
+    bash
+
+# Create postgres user and directories
+RUN addgroup -g 70 postgres && \
+    adduser -u 70 -G postgres -s /bin/sh -D postgres && \
+    mkdir -p /var/lib/postgresql/data /var/run/postgresql && \
+    chown -R postgres:postgres /var/lib/postgresql /var/run/postgresql && \
+    chmod 2777 /var/run/postgresql
+
+# Copy only the compiled pgvector files from builder
+COPY --from=builder /tmp/vector.so /usr/lib/postgresql15/
+COPY --from=builder /tmp/vector--0.5.1.sql /usr/share/postgresql15/extension/
+COPY --from=builder /tmp/vector.control /usr/share/postgresql15/extension/
+
+# Create entrypoint directories
+RUN mkdir -p /docker-entrypoint-initdb.d
+
+# Create minimal initialization script
+RUN echo "#!/bin/bash" > /docker-entrypoint.sh && \
+    echo "set -e" >> /docker-entrypoint.sh && \
+    echo 'if [ "$1" = "postgres" ]; then' >> /docker-entrypoint.sh && \
+    echo '    chown -R postgres:postgres /var/lib/postgresql/data' >> /docker-entrypoint.sh && \
+    echo '    chmod 700 /var/lib/postgresql/data' >> /docker-entrypoint.sh && \
+    echo '    if [ ! -s /var/lib/postgresql/data/PG_VERSION ]; then' >> /docker-entrypoint.sh && \
+    echo '        su-exec postgres initdb -D /var/lib/postgresql/data' >> /docker-entrypoint.sh && \
+    echo '        su-exec postgres pg_ctl -D /var/lib/postgresql/data start' >> /docker-entrypoint.sh && \
+    echo '        su-exec postgres createdb ${POSTGRES_DB:-postgres}' >> /docker-entrypoint.sh && \
+    echo '        su-exec postgres psql -d ${POSTGRES_DB:-postgres} -c "CREATE EXTENSION IF NOT EXISTS vector;"' >> /docker-entrypoint.sh && \
+    echo '        for f in /docker-entrypoint-initdb.d/*; do' >> /docker-entrypoint.sh && \
+    echo '            if [ -f "$f" ]; then' >> /docker-entrypoint.sh && \
+    echo '                su-exec postgres psql -d ${POSTGRES_DB:-postgres} -f "$f"' >> /docker-entrypoint.sh && \
+    echo '            fi' >> /docker-entrypoint.sh && \
+    echo '        done' >> /docker-entrypoint.sh && \
+    echo '        su-exec postgres pg_ctl -D /var/lib/postgresql/data stop' >> /docker-entrypoint.sh && \
+    echo '    fi' >> /docker-entrypoint.sh && \
+    echo '    exec su-exec postgres postgres -D /var/lib/postgresql/data' >> /docker-entrypoint.sh && \
+    echo 'fi' >> /docker-entrypoint.sh && \
+    echo 'exec "$@"' >> /docker-entrypoint.sh && \
+    chmod +x /docker-entrypoint.sh
+
+# Copy initialization scripts
+COPY init-db/ /docker-entrypoint-initdb.d/
+
+# Set environment variables
+ENV POSTGRES_DB=postgres
+ENV POSTGRES_USER=postgres
+ENV POSTGRES_PASSWORD=postgres
+ENV PGDATA=/var/lib/postgresql/data
+
+# Expose PostgreSQL port
+EXPOSE 5432
+
+# Set volume
+VOLUME ["/var/lib/postgresql/data"]
+
+# Set user
+USER postgres
+
+ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["postgres"]
