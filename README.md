@@ -4,7 +4,7 @@ This Docker Compose setup creates a PostgreSQL database with the following confi
 
 ## Database Configuration
 
-- **Database Name**: `askwealth`
+- **Database Name**: `askwealth-dev`
 - **Port**: `5432`
 - **Admin User**: `postgres` (password: `postgres`)
 - **Extensions**: `pgvector` (for vector similarity search and embeddings)
@@ -38,13 +38,13 @@ docker-compose down
 
 ```bash
 # As the read-write user
-docker-compose exec postgres psql -U askwealth_rw_dev -d askwealth
+docker-compose exec postgres psql -U askwealth_rw_dev -d askwealth-dev
 
 # As the admin user
-docker-compose exec postgres psql -U askwealth_admin_dev -d askwealth
+docker-compose exec postgres psql -U askwealth_admin_dev -d askwealth-dev
 
 # As the default postgres user
-docker-compose exec postgres psql -U postgres -d askwealth
+docker-compose exec postgres psql -U postgres -d askwealth-dev
 ```
 
 ### Check database status
@@ -63,7 +63,7 @@ docker-compose logs postgres
 
 ```bash
 # Connect to database and test vector operations
-docker-compose exec postgres psql -U askwealth_rw_dev -d askwealth -c "SELECT '[1,2,3]'::vector;"
+docker-compose exec postgres psql -U askwealth_rw_dev -d askwealth-dev -c "SELECT '[1,2,3]'::vector;"
 ```
 
 ## File Structure

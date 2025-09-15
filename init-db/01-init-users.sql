@@ -8,8 +8,8 @@ CREATE EXTENSION IF NOT EXISTS vector;
 CREATE ROLE citi_pg_app_owner;
 
 -- Grant necessary privileges to the application role
-GRANT CONNECT ON DATABASE askwealth TO citi_pg_app_owner;
-GRANT CREATE ON DATABASE askwealth TO citi_pg_app_owner;
+GRANT CONNECT ON DATABASE "askwealth-dev" TO citi_pg_app_owner;
+GRANT CREATE ON DATABASE "askwealth-dev" TO citi_pg_app_owner;
 GRANT USAGE ON SCHEMA public TO citi_pg_app_owner;
 GRANT CREATE ON SCHEMA public TO citi_pg_app_owner;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO citi_pg_app_owner;
